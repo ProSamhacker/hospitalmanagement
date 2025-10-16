@@ -39,15 +39,22 @@ class MedicationRepository(private val medicationDao: MedicationDao) {
     /**
      * A general-purpose function to query the Gemini API.
      * @param prompt The question or command for the AI.
+     * @param summarize If true, asks Gemini to provide a concise summary
      * @return A String containing the AI's response or an error message.
      */
-    suspend fun queryGemini(prompt: String): String {
+    suspend fun queryGemini(prompt: String, summarize: Boolean = true): String {
+        val enhancedPrompt = if (summarize) {
+            "Please provide a concise, brief answer (max 2-3 sentences) to: $prompt"
+        } else {
+            prompt
+        }
+
         val url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=$geminiApiKey"
         val requestBody = """
         {
           "contents": [{
             "parts":[{
-              "text": "$prompt"
+              "text": "$enhancedPrompt"
             }]
           }]
         }
@@ -67,7 +74,14 @@ class MedicationRepository(private val medicationDao: MedicationDao) {
                 // Diagnostic Log: Prints the raw server response to Logcat
                 Log.d("GEMINI_RESPONSE", "Raw JSON: $responseBody")
 
-                extractTextFromGeminiResponse(responseBody)
+                val fullResponse = extractTextFromGeminiResponse(responseBody)
+
+                // Additional truncation for very long responses
+                if (fullResponse.length > 300) {
+                    fullResponse.take(297) + "..."
+                } else {
+                    fullResponse
+                }
             } catch (e: IOException) {
                 "Network error: ${e.message}"
             }
@@ -78,8 +92,8 @@ class MedicationRepository(private val medicationDao: MedicationDao) {
      * Asks Gemini to correct the spelling of a medication name.
      */
     suspend fun correctMedicationSpelling(name: String): String {
-        val prompt = "You are a hospital pharmacy assistant. Correct any spelling mistakes in the following medication name: '$name'. Respond with only the corrected name and nothing else."
-        return queryGemini(prompt)
+        val prompt = "Correct this medication name: '$name'. Reply with ONLY the corrected name, nothing else."
+        return queryGemini(prompt, summarize = false).trim()
     }
 
     /**
@@ -122,7 +136,7 @@ class MedicationRepository(private val medicationDao: MedicationDao) {
 
         } catch (e: Exception) {
             // This will now catch other unexpected issues
-            "Error parsing response: ${e.localizedMessage}. Raw response was: $jsonString"
+            "Error parsing response: ${e.localizedMessage}"
         }
     }
 }

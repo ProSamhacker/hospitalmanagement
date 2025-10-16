@@ -23,7 +23,7 @@
     <androidx.cardview.widget.CardView
         android:id="@+id/responseCard"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="120dp"
         android:layout_below="@id/headerTitle"
         android:layout_margin="16dp"
         app:cardBackgroundColor="#424242"
@@ -31,7 +31,7 @@
         app:cardElevation="4dp">
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:orientation="vertical"
             android:padding="16dp">
             <TextView
@@ -41,14 +41,25 @@
                 android:textColor="#BDBDBD"
                 android:textSize="12sp"
                 android:textStyle="bold" />
-            <TextView
-                android:id="@+id/resultText"
+
+            <!-- Make the response scrollable with ScrollView -->
+            <ScrollView
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:layout_marginTop="8dp"
-                android:text="Tap the mic and say a command..."
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
+                android:scrollbars="vertical"
+                android:fadeScrollbars="false">
+
+                <TextView
+                    android:id="@+id/resultText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Tap the mic and say a command..."
+                    android:textColor="@android:color/white"
+                    android:textSize="16sp"
+                    android:lineSpacingExtra="2dp" />
+            </ScrollView>
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
