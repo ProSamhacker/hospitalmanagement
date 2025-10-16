@@ -15,6 +15,9 @@ interface MedicationDao {
     @Query("SELECT * FROM medications")
     suspend fun getAll(): List<Medication>
 
+    @Query("DELETE FROM medications")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM medications WHERE section = :section LIMIT 1")
     suspend fun findBySection(section: String): Medication?
 }

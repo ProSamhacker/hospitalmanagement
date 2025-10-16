@@ -4,63 +4,94 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
-import android.widget.Button
+import android.speech.tts.UtteranceProgressListener
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.TextView
-import androidx.activity.enableEdgeToEdge
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.DividerItemDecoration
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.launch
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.util.*
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var tts: TextToSpeech
     private lateinit var resultText: TextView
-    private lateinit var speakBtn: Button
+    private lateinit var speakBtn: FloatingActionButton
+    private lateinit var stopBtn: FloatingActionButton
+    private lateinit var addManuallyBtn: FloatingActionButton
     private lateinit var adapter: MedicationAdapter
     private lateinit var medList: RecyclerView
-    private lateinit var db: AppDatabase
+    private lateinit var loadingIndicator: ProgressBar
+    private lateinit var viewModel: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // Adjust padding for system bars
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
-
-        // Init views
+        // Initialize views
         resultText = findViewById(R.id.resultText)
         speakBtn = findViewById(R.id.speakBtn)
+        stopBtn = findViewById(R.id.stopBtn)
+        addManuallyBtn = findViewById(R.id.addManuallyBtn)
         medList = findViewById(R.id.medList)
+        loadingIndicator = findViewById(R.id.loadingIndicator)
 
         // Setup RecyclerView
         adapter = MedicationAdapter(emptyList())
         medList.layoutManager = LinearLayoutManager(this)
         medList.adapter = adapter
-        medList.addItemDecoration(DividerItemDecoration(this, DividerItemDecoration.VERTICAL))
 
-        // Init DB + TTS
-        db = AppDatabase.getDatabase(this)
+        // Setup ViewModel
+        val database = AppDatabase.getDatabase(this)
+        val repository = MedicationRepository(database.medicationDao())
+        val viewModelFactory = MainViewModel.Factory(repository)
+        viewModel = ViewModelProvider(this, viewModelFactory).get(MainViewModel::class.java)
+
         tts = TextToSpeech(this, this)
 
-        // Setup Speech Recognition
+        // Setup Observers & Listeners
+        setupObservers()
+        setupClickListeners()
+    }
+
+    private fun setupObservers() {
+        viewModel.medications.observe(this) { meds ->
+            adapter.updateData(meds)
+        }
+
+        viewModel.responseMessage.observe(this) { response ->
+            resultText.text = response
+            speakOut(response)
+        }
+
+        viewModel.isLoading.observe(this) { isLoading ->
+            loadingIndicator.visibility = if (isLoading) View.VISIBLE else View.GONE
+            val isEnabled = !isLoading
+            speakBtn.isEnabled = isEnabled
+            addManuallyBtn.isEnabled = isEnabled
+            speakBtn.alpha = if (isLoading) 0.5f else 1.0f
+            addManuallyBtn.alpha = if (isLoading) 0.5f else 1.0f
+        }
+    }
+
+    private fun setupClickListeners() {
         val speechLauncher = registerForActivityResult(
             androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
         ) { result ->
             if (result.resultCode == RESULT_OK && result.data != null) {
                 val spokenText =
                     result.data!!.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)
-                spokenText?.let { handleCommand(it) }
+                if (!spokenText.isNullOrBlank()) {
+                    resultText.text = "You said: $spokenText"
+                    viewModel.processVoiceCommand(spokenText)
+                }
             }
         }
 
@@ -72,85 +103,61 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             speechLauncher.launch(intent)
         }
 
-        // Load existing medications
-        loadMedications()
-    }
+        stopBtn.setOnClickListener {
+            if (::tts.isInitialized) {
+                tts.stop()
+            }
+        }
 
-    private fun loadMedications() {
-        lifecycleScope.launch {
-            val meds = db.medicationDao().getAll()
-            runOnUiThread { adapter.updateData(meds) }
+        addManuallyBtn.setOnClickListener {
+            showAddMedicationDialog()
         }
     }
 
-    private fun handleCommand(command: String) {
-        resultText.text = command
+    private fun showAddMedicationDialog() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_medication, null)
+        val etMedName = dialogView.findViewById<EditText>(R.id.etMedicationName)
+        val etMedSection = dialogView.findViewById<EditText>(R.id.etMedicationSection)
 
-        lifecycleScope.launch {
-            val dao = db.medicationDao()
-            val response: String
+        AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setPositiveButton("Add") { dialog, _ ->
+                val name = etMedName.text.toString().trim()
+                val section = etMedSection.text.toString().trim()
 
-            when {
-                command.contains("add", ignoreCase = true) -> {
-                    val section = extractSection(command)
-                    val medName = extractMedicationName(command)
-                    dao.insert(Medication(name = medName, section = section))
-                    response = "Medication '$medName' added to $section."
+                if (name.isNotEmpty()) {
+                    viewModel.addMedicationManually(name, section)
+                } else {
+                    Toast.makeText(this, "Medication name cannot be empty", Toast.LENGTH_SHORT).show()
                 }
-                command.contains("delete", ignoreCase = true) -> {
-                    val section = extractSection(command)
-                    val med = dao.findBySection(section)
-                    response = if (med != null) {
-                        dao.delete(med)
-                        "Medication '${med.name}' deleted from $section."
-                    } else "No medication found in $section."
-                }
-                command.contains("update", ignoreCase = true) -> {
-                    val section = extractSection(command)
-                    val med = dao.findBySection(section)
-                    response = if (med != null) {
-                        val updatedName = extractMedicationName(command).ifEmpty { "Updated Medication" }
-                        val updated = med.copy(name = updatedName)
-                        dao.update(updated)
-                        "Medication updated to '$updatedName' in $section."
-                    } else "No medication found to update in $section."
-                }
-                else -> {
-                    response = "Sorry, I didn’t understand that command."
-                }
+                dialog.dismiss()
             }
-
-            val allMeds = dao.getAll()
-
-            runOnUiThread {
-                resultText.text = "You said: $command\n$response"
-                adapter.updateData(allMeds)
-                speakOut(response)
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.cancel()
             }
-        }
-    }
-
-    // Extracts section after "to", defaults to "General"
-    private fun extractSection(command: String): String {
-        return command.substringAfterLast("to", "General").trim()
-    }
-
-    // Extracts medication name between "add"/"update" and "to"
-    private fun extractMedicationName(command: String): String {
-        return command.substringAfter("add", "")
-            .substringAfter("update", "")
-            .substringBefore("to")
-            .trim()
-            .ifEmpty { "Medication" }
+            .create()
+            .show()
     }
 
     private fun speakOut(text: String) {
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
+        val utteranceId = this.hashCode().toString()
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts.language = Locale.US
+            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {
+                    runOnUiThread { stopBtn.visibility = View.VISIBLE }
+                }
+                override fun onDone(utteranceId: String?) {
+                    runOnUiThread { stopBtn.visibility = View.GONE }
+                }
+                override fun onError(utteranceId: String?) {
+                    runOnUiThread { stopBtn.visibility = View.GONE }
+                }
+            })
         }
     }
 

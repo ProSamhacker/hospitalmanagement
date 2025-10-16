@@ -23,10 +23,11 @@ class MedicationAdapter(private var items: List<Medication>) :
 
     override fun onBindViewHolder(holder: MedViewHolder, position: Int) {
         val med = items[position]
-        holder.medId.text = med.id.toString()
+        holder.medId.text = (position + 1).toString()   // SR No instead of DB id
         holder.medName.text = med.name
         holder.medSection.text = med.section
     }
+
 
     override fun getItemCount(): Int = items.size
 

@@ -8,6 +8,9 @@ android {
     namespace = "com.example.hospitalmanagement"
     compileSdk = 36
 
+    buildFeatures {
+        buildConfig = true
+    }
     defaultConfig {
         applicationId = "com.example.hospitalmanagement"
         minSdk = 21
@@ -16,6 +19,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                buildConfigField(
+                    "String",
+                    "GEMINI_API_KEY",
+                    "\"${project.properties["GEMINI_API_KEY"]}\""
+                )
+
     }
 
     buildTypes {
@@ -59,4 +68,14 @@ dependencies {
 
     // ✅ Lifecycle (so we can use lifecycleScope)
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+
+    // ... your existing dependencies (core, appcompat, material, room)
+// For ViewModel and LiveData
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.5.1")
+// For Networking (to call Gemini API)
+    implementation("com.squareup.okhttp3:okhttp:4.9.3")
+// For JSON Parsing (to handle Gemini response)
+    implementation("com.google.code.gson:gson:2.9.0")
 }
