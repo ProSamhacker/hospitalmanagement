@@ -191,5 +191,6 @@ class MedicationRepository(
 
         // Re-use your existing queryGemini function
         return queryGemini(prompt, summarize = false)
+        //
     }
 }
