@@ -1,10 +1,12 @@
-package com.example.hospitalmanagement
+package com.example.hospitalmanagement.ADAPTER
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.hospitalmanagement.Medication
+import com.example.hospitalmanagement.R
 
 class MedicationAdapter(private var items: List<Medication>) :
     RecyclerView.Adapter<MedicationAdapter.MedViewHolder>() {

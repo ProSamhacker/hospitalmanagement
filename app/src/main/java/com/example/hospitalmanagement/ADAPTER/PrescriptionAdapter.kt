@@ -1,4 +1,4 @@
-package com.example.hospitalmanagement
+package com.example.hospitalmanagement.ADAPTER
 
 import android.speech.tts.TextToSpeech
 import android.view.LayoutInflater
@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.hospitalmanagement.Prescription
+import com.example.hospitalmanagement.R
 
 class PrescriptionAdapter(
     private var items: List<Prescription>,

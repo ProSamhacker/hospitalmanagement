@@ -1,5 +1,6 @@
-package com.example.hospitalmanagement
+package com.example.hospitalmanagement.DAO
 import androidx.room.*
+import com.example.hospitalmanagement.Medication
 
 @Dao
 interface MedicationDao {
